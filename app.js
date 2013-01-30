@@ -1,7 +1,9 @@
 
 // Initialize the Github Search Application when the DOM has loaded.
-jQuery(document).ready(function($) {
-  window.app = new GithubSearchApp($, $("body"));
+$(function() {
+  var githubAPI = window.githubAPI = new GithubAPI();
+  var app       = window.app       = new GithubSearchApp($("body"),
+                                                         githubAPI);
 });
 
 
@@ -11,45 +13,82 @@ jQuery(document).ready(function($) {
  * list. Further information about the repository can be obtained by clicking
  * on the repository's link.
  */
-var GithubSearchApp = function($, $el) {
-
+var GithubSearchApp = function($el, api) {
+  
   var $search  = $f("#search");
   var $results = $f("#results");
+  var $button  = $("<button>Search</button>");
+  var $limit   = $("<em/>");
+  var $form    = $("<form></form>");
 
-  var _searchTimeout = null;
+  $form.append($search, $button, $limit);
+  $el.prepend($form);
+  $form.bind("submit", searchChange);
+  api.getRateLimit(function(data) {
+    updateRateLimit(data.data.rate.remaining, data.data.rate.limit);
+  }, this);
 
-  $search.bind("keyup", searchChange);
+  var $event   = $("<u/>");
+  var e_search = $.Event("search");
 
   function $f(selector) {
     return $el.find(selector);
   }
 
+  function updateRateLimit(remaining, limit) {
+    $limit.html("Rate Limit: " + remaining + "/" + limit);
+  }
+
   function searchChange(e) {
-    clearTimeout(_searchTimeout);
-    _searchTimeout = setTimeout(doSearch, 300);
+    e.preventDefault();
+    doSearch();
   }
 
   function doSearch() {
     var keyword = $search.val();
-
-    $.ajax("https://api.github.com/legacy/repos/search/" + keyword, {
-      cache: true,
-      crossDomain: true,
-      dataType: "jsonp"
-    }).done(parseResults);
+    api.getReposSearch(keyword, parseResults);
   }
 
   function parseResults(data, status, jqxhr) {
+    updateRateLimit(data.meta["X-RateLimit-Remaining"],
+                    data.meta["X-RateLimit-Limit"]);
+    updateList(data.data.repositories);
+  }
+
+  function updateList(repos) {
     var $ul = $("<ul/>");
     
-    for (var i in data.data.repositories) {
-      var repo = data.data.repositories[i];
-      console.info(repo);
+    for (var i in repos) {
+      var repo = repos[i];
       var $li = $("<li>" + repo.owner + "/" + repo.name + "</li>");
       $ul.append($li);
     }
 
     $results.html($ul);
+  }
+
+};
+
+
+var GithubAPI = function() {
+
+  function get(url, func) {
+    return $.ajax("https://api.github.com/" + url, {
+      crossDomain: true,
+      dataType: "jsonp"
+    }).done(function(data, status, jqxhr) {
+      if (func) {
+        func(data, status, jqxhr);
+      }
+    });
+  }
+
+  this.getRateLimit = function(func, context) {
+    return get("rate_limit", func, context);
+  }
+
+  this.getReposSearch = function(keyword, func, context) {
+    return get("legacy/repos/search/" + keyword, func, context);
   }
 
 };

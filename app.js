@@ -25,8 +25,10 @@ var GithubSearchApp = function($el, api) {
 
   $form.append($search, $button, $limit);
   $el.prepend($form);
-  $form.bind("submit", searchChange);
   updateRateLimit();
+
+  $form.bind("submit", searchChange);
+  $results.on("click", "a.github-alert", alertRepo);
 
   var $event   = $("<u/>");
   var e_search = $.Event("search");
@@ -61,11 +63,33 @@ var GithubSearchApp = function($el, api) {
     
     for (var i in repos) {
       var repo = repos[i];
-      var $li = $("<li>" + repo.owner + "/" + repo.name + "</li>");
+
+      var $li = $('<li/>');
+      var $link = $('<a href="#" class="github-alert"/>').
+                  data("repo", repo).
+                  text(repo.owner + "/" + repo.name);
+
+      $li.append($link);
       $ul.append($li);
     }
 
     $results.html($ul);
+  }
+
+  function alertRepo(e) {
+    e.preventDefault();
+
+    var $el   = $(e.target);
+    var repo  = $el.data("repo");
+
+    alert(
+      "Owner: " + repo.owner + "\r\n" +
+      "Name:  " + repo.name + "\r\n" +
+      "Language: " + repo.language + "\r\n" +
+      "Followers: " + repo.followers + "\r\n" +
+      "URL: https://github.com/" + repo.owner + "/" + repo.name + "\r\n" +
+      "Description: " + repo.description
+    );
   }
 
 };
@@ -89,7 +113,7 @@ var GithubAPI = function() {
     });
   }
 
-  this.getRateLimit = function(func) {
+  function getRateLimit(func) {
     var result = true;
 
     if (_rateRemaining === null || _rateLimit === null) {
@@ -105,13 +129,35 @@ var GithubAPI = function() {
     return result;
   }
 
-  this.getReposSearch = function(keyword, func) {
-    return get("legacy/repos/search/" + keyword, function(data) {
-      _rateRemaining = data.meta["X-RateLimit-Remaining"];
-      _rateLimit     = data.meta["X-RateLimit-Limit"];
+  function getReposSearch(keyword, func) {
+    var result = true;
 
-      func(data.data.repositories);
+    var cache = localStorage.getItem("GithubAPI/" + keyword);
+    var repos = JSON.parse(cache);
+
+    if (cache === null) {
+      result = get("legacy/repos/search/" + keyword, function(data) {
+        _rateRemaining = data.meta["X-RateLimit-Remaining"];
+        _rateLimit     = data.meta["X-RateLimit-Limit"];
+
+        repos = data.data.repositories;
+        localStorage.setItem("GithubAPI/" + keyword,
+                             JSON.stringify(repos));
+      });
+    }
+
+    $.when(result).then(function() {
+      func(repos);
     });
+    return result;
+  }
+
+  this.getRateLimit = function(func) {
+    return getRateLimit(func);
+  }
+
+  this.getReposSearch = function(keyword, func) {
+    return getReposSearch(keyword, func);
   }
 
 };

@@ -14,6 +14,8 @@ $(function() {
  * on the repository's link.
  */
 var GithubSearchApp = function($el, api) {
+
+  var that = this;
   
   var $search  = $f("#search");
   var $results = $f("#results");
@@ -26,7 +28,7 @@ var GithubSearchApp = function($el, api) {
   $form.bind("submit", searchChange);
   api.getRateLimit(function(data) {
     updateRateLimit(data.data.rate.remaining, data.data.rate.limit);
-  }, this);
+  });
 
   var $event   = $("<u/>");
   var e_search = $.Event("search");
@@ -72,6 +74,8 @@ var GithubSearchApp = function($el, api) {
 
 var GithubAPI = function() {
 
+  var that = this;
+
   function get(url, func) {
     return $.ajax("https://api.github.com/" + url, {
       crossDomain: true,
@@ -83,12 +87,12 @@ var GithubAPI = function() {
     });
   }
 
-  this.getRateLimit = function(func, context) {
-    return get("rate_limit", func, context);
+  this.getRateLimit = function(func) {
+    return get("rate_limit", func);
   }
 
-  this.getReposSearch = function(keyword, func, context) {
-    return get("legacy/repos/search/" + keyword, func, context);
+  this.getReposSearch = function(keyword, func) {
+    return get("legacy/repos/search/" + keyword, func);
   }
 
 };
